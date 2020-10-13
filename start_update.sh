@@ -1,15 +1,11 @@
 #!/bin/sh
-workDir=/home/prots/fias
-cd $workDir/dbf
+export $(egrep -v '^#' .env | xargs)
+
+cd $WORK_DIR/dbf
 
 #
 rm -r *.DBF *.csv
 unzip $1 ADDROB$2.DBF HOUSE$2.DBF ROOM$2.DBF ESTSTAT.DBF STRSTAT.DBF ROOMTYPE.DBF
-
-if [ "$1" != "full.zip" ]
-then
-  rm -r $1
-fi
 
 chmod 0777 ./*.DBF
 #
@@ -31,7 +27,8 @@ sed -i '1d' room.csv
 dbf2csv ROOMTYPE.DBF > roomtype.csv -ie cp866 -oe utf-8
 sed -i '1d' roomtype.csv
 rm -r *.DBF
-psql fias < $workDir/sql/update_address.sql
-psql fias < $workDir/sql/update_houses.sql
-psql fias < $workDir/sql/update_rooms.sql
+psql $PG_DBNAME < $WORK_DIR/sql/update_address.sql
+psql $PG_DBNAME < $WORK_DIR/sql/update_houses.sql
+psql $PG_DBNAME < $WORK_DIR/sql/update_rooms.sql
+
 rm -r *.csv

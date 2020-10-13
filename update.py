@@ -3,7 +3,7 @@ import psycopg2
 import time
 import requests
 import urllib.request
-import os, urllib, subprocess
+import os, urllib, glob
 from datetime import datetime;
 
 from dotenv import load_dotenv
@@ -33,7 +33,7 @@ def setVersion(version,region):
 		cursor.execute("""UPDATE version set version=%s WHERE region=%s""", (version,region,))
 		conn.commit()
 	else:
-		cursor.execute("""INSERT INTO version (region) VALUES (%s)""", (region,))
+		cursor.execute("""INSERT INTO version (region,version) VALUES (%s, %s)""", (region,version))
 		conn.commit()
 	cursor.close()
 	return True
@@ -57,7 +57,7 @@ def getFiasVersion(ver, latest = False):
 	r = r.json()
 
 	if latest == True:
-		return [r[3]['VersionId'],r[3]['FiasCompleteDbfUrl']]
+		return [r[0]['VersionId'],r[0]['FiasCompleteDbfUrl']]
 
 	data = dict()
 	for version in r:
@@ -97,11 +97,10 @@ for region in regions:
 	if cntReg > 0:
 		ver = Version(region[0])
 		listUpdate = getFiasVersion(ver)
-		print(ver)
 		for update in listUpdate:
-			urllib.request.urlretrieve(update[1], './dbf/'+str(update[0])+'.zip')
+			if os.path.isfile('./dbf/'+str(update[0])+'.zip') == False:
+				urllib.request.urlretrieve(update[1], './dbf/'+str(update[0])+'.zip')
 			bashCommand = './start_update.sh '+str(update[0])+'.zip'+' '+region[0]
-			print(bashCommand)
 			os.system(bashCommand)
 			setVersion(update[0],region[0])
 			ver = update[0]
@@ -109,10 +108,14 @@ for region in regions:
 		fullVer = Version('full')
 		setVersion(fullVer,region[0])
 		bashCommand = './start_update.sh full.zip'+' '+region[0]
-		print(bashCommand)
 		os.system(bashCommand)
 
-exit();
+dir = os.getenv("WORK_DIR")+"/dbf/"
+
+for zippath in glob.iglob(os.path.join(dir, '202*.zip')):
+    os.remove(zippath)
+
+exit()
 
 		
 
