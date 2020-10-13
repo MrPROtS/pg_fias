@@ -1,0 +1,11 @@
+SELECT * FROM AddressObjectTree('719b789d-2476-430a-89cd-3fedc643d821',51) ORDER BY AOLevel;
+SELECT * FROM AddressObjectTree('719b789d-2476-430a-89cd-3fedc643d821')  ORDER BY AOLevel;
+SELECT AddressObjectGroup('719b789d-2476-430a-89cd-3fedc643d821',51);
+SELECT AddressObjectGroup('db9c4f8b-b706-40e2-b2b4-d31b98dcd3d1');
+SELECT AddressObjectGroup('625497d3-22de-4390-b4b4-2febfbfc15ce');
+SELECT AddressObjectGroup('39da6405-b3e6-4baf-b332-d47b73b4d5fb');
+SELECT AddressObjectGroup('bfc1236d-b5d2-4734-a238-3b1e4830e963');
+SELECT AddressObjectsTreeActualName('bfc1236d-b5d2-4734-a238-3b1e4830e963','{TM,TP,LM,LP,ST}');
+SELECT AddressObjectsTreeActualName('bfc1236d-b5d2-4734-a238-3b1e4830e963');
+SELECT * FROM Houses_SearchByName('1',NULL,NULL,'Красноярск');
+SELECT * FROM Houses_SearchByName(NULL,NULL,NULL,'Юбилейная','УЛ','Абан',NULL,'Абанский');
