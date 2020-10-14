@@ -80,7 +80,7 @@ def getFullFias():
 def CheckFullUpdate():
 	latest = getFiasVersion(False,True)
 	try:
-		stat = os.stat('./dbf/full.zip')
+		stat = os.stat(os.getenv('WORK_DIR')+'/dbf/'+'full.zip')
 		if stat.st_size / 1024 / 1024 < 7000:
 			getFullFias()
 	except:

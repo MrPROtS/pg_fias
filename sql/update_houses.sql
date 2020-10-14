@@ -18,7 +18,7 @@ CREATE TABLE StructureStatus_temp AS
   SELECT * FROM StructureStatus LIMIT 1;
  DELETE FROM StructureStatus_temp; 
 
-\COPY  EstateStatus_temp(EstateStatusID,EstateStatusNAME,EstateStatusShortName) FROM '/home/prots/fias/dbf/eststat.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8');
+\COPY  EstateStatus_temp(EstateStatusID,EstateStatusNAME,EstateStatusShortName) FROM './dbf/eststat.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8');
 
 UPDATE EstateStatus s SET EstateStatusNAME=t.EstateStatusNAME,
 				EstateStatusShortName=t.EstateStatusShortName
@@ -29,7 +29,7 @@ UPDATE EstateStatus s SET EstateStatusNAME=t.EstateStatusNAME,
 INSERT INTO EstateStatus(EstateStatusID,EstateStatusNAME,EstateStatusShortName) 
 	SELECT EstateStatusID,EstateStatusNAME,EstateStatusShortName FROM EstateStatus_temp t WHERE NOT EXISTS (SELECT * FROM EstateStatus os WHERE t.EstateStatusID=os.EstateStatusID);
 
-\COPY StructureStatus_temp(StructureStatusID,StructureStatusNAME,StructureStatusShortName) FROM '/home/prots/fias/dbf/strstat.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8'); 
+\COPY StructureStatus_temp(StructureStatusID,StructureStatusNAME,StructureStatusShortName) FROM './dbf/strstat.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8'); 
 
 UPDATE StructureStatus s SET StructureStatusNAME=t.StructureStatusNAME,
 				StructureStatusShortName=t.StructureStatusShortName
@@ -40,7 +40,7 @@ UPDATE StructureStatus s SET StructureStatusNAME=t.StructureStatusNAME,
 INSERT INTO StructureStatus(StructureStatusID,StructureStatusNAME,StructureStatusShortName) 
 	SELECT StructureStatusID,StructureStatusNAME,StructureStatusShortName FROM StructureStatus_temp t WHERE NOT EXISTS (SELECT * FROM StructureStatus os WHERE t.StructureStatusID=os.StructureStatusID);
 
-\COPY  Houses_temp(AOGUID,BUILDNUM,ENDDATE,ESTSTATUS,HOUSEGUID,HOUSEID,HOUSENUM,STATSTATUS,IFNSFL,IFNSUL,OKATO,OKTMO,POSTALCODE,STARTDATE,STRUCNUM,STRSTATUS,TERRIFNSFL,TERRIFNSUL,UPDATEDATE,NORMDOC,COUNTER,CADNUM,DIVTYPE) FROM '/home/prots/fias/dbf/house.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8');
+\COPY  Houses_temp(AOGUID,BUILDNUM,ENDDATE,ESTSTATUS,HOUSEGUID,HOUSEID,HOUSENUM,STATSTATUS,IFNSFL,IFNSUL,OKATO,OKTMO,POSTALCODE,STARTDATE,STRUCNUM,STRSTATUS,TERRIFNSFL,TERRIFNSUL,UPDATEDATE,NORMDOC,COUNTER,CADNUM,DIVTYPE) FROM './dbf/house.csv' WITH (FORMAT csv,DELIMITER ',', ENCODING 'UTF8');
 
 UPDATE 	Houses h SET AOGUID=t.AOGUID,
 			BUILDNUM=t.BUILDNUM,

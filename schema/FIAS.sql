@@ -228,7 +228,6 @@ CREATE TABLE "public"."version" (
 -- ----------------------------
 -- Function structure for addressobjectgroup
 -- ----------------------------
-DROP FUNCTION IF EXISTS "public"."addressobjectgroup"("a_aoguid" uuid, "a_currstatus" int4=NULL::integer);
 CREATE OR REPLACE FUNCTION "public"."addressobjectgroup"("a_aoguid" uuid, "a_currstatus" int4=NULL::integer)
   RETURNS "pg_catalog"."varchar" AS $BODY$
 DECLARE
@@ -309,12 +308,19 @@ DECLARE
   LANGUAGE plpgsql VOLATILE
   COST 100;
 
--- ----------------------------
--- Function structure for addressobjectstreeactualname
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."addressobjectstreeactualname"("a_aoguid" uuid=LP, "a_maskarray" _varchar=ST'::character varying[]);
-CREATE OR REPLACE FUNCTION "public"."addressobjectstreeactualname"("a_aoguid" uuid=LP, "a_maskarray" _varchar=ST'::character varying[])
-  RETURNS "pg_catalog"."varchar" AS $BODY$
+DROP FUNCTION IF EXISTS AddressObjectsTreeActualName(a_AOGUID UUID,a_MaskArray VARCHAR(2)[10]) CASCADE;
+/*****************************************************************************/
+/* Возвращает строку с полным названием адресообразующего элемента  */
+/*****************************************************************************/ 
+CREATE OR REPLACE FUNCTION AddressObjectsTreeActualName(
+      a_AOGUID    UUID DEFAULT NULL,  /* Идентификтор */
+                                                      /* адресообразующего  элемента */
+      a_MaskArray   VARCHAR(2)[10] default '{TP,LM,LP,ST}'  /* Массив масок, */
+                                                       /* управляющий содержанием строки */ 
+                                                      /* с адресом дома*/
+)
+RETURNS VARCHAR(1000) AS
+$BODY$
 DECLARE
   c_CountryGroupValue  CONSTANT VARCHAR(50):='Country'; /* Признак группы - Страна*/  
   c_RegionGroupValue   CONSTANT VARCHAR(50):='Region'; /* Признак группы - Регион*/ 
@@ -368,7 +374,7 @@ DECLARE
           WHERE aoguid=a_AOGUID;
   OPEN cursor_AddressObjectTree FOR SELECT ShortTypeName,
                         REPLACE(AddressObjectName,'  ',' '),
-                       AOLevel,AddressObjectGroup(AOGUID )
+                       AOLevel,addressobjectgroup(AOGUID )
           FROM AddressObjectTree(a_AOGUID) 
           ORDER BY AOLevel;
   v_TreeLeverCount:=0;
@@ -440,20 +446,18 @@ DECLARE
   RETURN  v_TreeAddressObjectName;
   END;
   $BODY$
-  LANGUAGE plpgsql VOLATILE
-  COST 100;
+LANGUAGE plpgsql ;
+COMMENT ON FUNCTION AddressObjectsTreeActualName(a_AOGUID UUID,
+                                                     a_MaskArray VARCHAR(2)[10])
+    IS 'Возвращает  строку с полным названием адресообразующего элемента';
 
--- ----------------------------
--- Function structure for addressobjecttree
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."addressobjecttree"("a_aoguid" uuid, "a_currstatus" int4=NULL::integer);
 CREATE OR REPLACE FUNCTION "public"."addressobjecttree"("a_aoguid" uuid, "a_currstatus" int4=NULL::integer)
   RETURNS TABLE("aoguid" uuid, "currstatus" int4, "actstatus" int4, "aolevel" int4, "shorttypename" varchar, "addressobjectname" varchar) AS $BODY$
 DECLARE
  c_ActualStatusCode CONSTANT INTEGER :=1; /* Признак актуальной записи  */
                                     /* адресообразующего элемента */
- c_NotActualStatusCode CONSTANT INTEGER :=0;	/* Значение кода актуальной записи */
- v_AOGUID     UUID;	 /* ИД адресообразующего элемента */
+ c_NotActualStatusCode CONSTANT INTEGER :=0;  /* Значение кода актуальной записи */
+ v_AOGUID     UUID;  /* ИД адресообразующего элемента */
  v_ParentGUID UUID; /* Идентификатор родительского элемента */
  v_CurrStatus    INTEGER; /* Статус актуальности КЛАДР 4*/
  v_ActStatus     INTEGER; /* Статус актуальности */
@@ -471,14 +475,14 @@ DECLARE
                                ao.AOGUID,ao.ParentGUID,ao.CurrStatus,ao.ActStatus,ao.AOLevel,
                               ao.ShortName, ao.FormalName
                   FROM AddressObjects ao
-	WHERE ao.AOGUID=a_AOGUID AND ao.CurrStatus=a_CurrStatus;
+  WHERE ao.AOGUID=a_AOGUID AND ao.CurrStatus=a_CurrStatus;
  ELSE
     SELECT INTO v_AOGUID,v_ParentGUID,v_CurrStatus,v_ActStatus,v_AOLevel,
                               v_ShortName, v_FormalName
                               ao.AOGUID,ao.ParentGUID,ao.CurrStatus,ao.ActStatus,ao.AOLevel,
                               ao.ShortName, ao.FormalName
                    FROM AddressObjects ao
-	WHERE ao.AOGUID=a_AOGUID AND ao.ActStatus=c_ActualStatusCode;
+  WHERE ao.AOGUID=a_AOGUID AND ao.ActStatus=c_ActualStatusCode;
    IF NOT FOUND THEN
       SELECT INTO v_AOGUID,v_ParentGUID,v_CurrStatus,v_ActStatus,v_AOLevel,
                                v_ShortName, v_FormalName
@@ -512,7 +516,7 @@ DECLARE
                               AND ao.currstatus = (SELECT MAX(iao.currstatus) 
                                                                FROM AddressObjects iao 
                                                                WHERE ao.aoguid = iao.aoguid);
-          END IF;	
+          END IF; 
           RETURN QUERY SELECT v_AOGUID,v_CurrStatus,v_ActStatus,v_AOLevel,v_ShortName,
                                                    v_FormalName;
  END LOOP;
@@ -522,56 +526,7 @@ END;
   COST 100
   ROWS 1000;
 
--- ----------------------------
--- Function structure for houses_addressobjecttree
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."houses_addressobjecttree"("a_houseguid" uuid, "a_enddate" timestamp='2079-06-06 00:00:00'::timestamp without time zone);
-CREATE OR REPLACE FUNCTION "public"."houses_addressobjecttree"("a_houseguid" uuid, "a_enddate" timestamp='2079-06-06 00:00:00'::timestamp without time zone)
-  RETURNS TABLE("guid" uuid, "currstatus" int4, "actstatus" int4, "aolevel" int4, "shorttypename" varchar, "addressobjectname" varchar) AS $BODY$
-DECLARE
-    c_MaxEndDate CONSTANT TIMESTAMP:=TO_TIMESTAMP('2079-06-06','YYYY-MM-DD');
-    c_ActualStatusCode CONSTANT INTEGER :=1;  
-                              /* Признак актуальной записи адресного объекта */
-    c_NotActualStatusCode CONSTANT INTEGER :=0; 
-                              /* Значени кода актуальной записи */
-    v_AOGUID UUID; /* Глобальный уникальный */
-                             /* идентификатор адресного объекта*/
-    v_CurrStatus INTEGER; /* Статус актуальности КЛАДР 4: */
-                             /* 0 - актуальный, */
-                            /*  1-50 - исторический, */
-                           /* т.е. объект был переименован, */
-                           /* в данной записи приведено */
-                           /* одно из прежних его наименований, */
-                           /* 51 - переподчиненный*/
-    v_Return_Error Integer :=0; /* Код возврата */
---*******************************************************************       
---*******************************************************************
- BEGIN
-    SELECT INTO v_AOGUID,v_CurrStatus h.AOGUID,
-                CASE WHEN 0 < ALL(SELECT iao.currstatus 
-                                        FROM AddressObjects iao 
-                                        WHERE ao.aoguid = iao.aoguid)
-                    THEN (SELECT MAX(iao.currstatus) 
-                                        FROM AddressObjects iao 
-                                        WHERE ao.aoguid = iao.aoguid)
-                    ELSE 0 END
-        FROM Houses h INNER JOIN AddressObjects ao ON h.AOGUID=ao.AOGUID 
-        WHERE h.HOUSEGUID=a_HOUSEGUID 
-            AND h.ENDDATE=COALESCE(a_ENDDATE,c_MaxEndDate)
-        ORDER BY h.ENDDATE DESC;
-    RETURN QUERY SELECT * FROM Houses_AddressObjectTree(
-                                                        v_AOGUID,a_HOUSEGUID,
-                                                        v_CurrStatus,a_ENDDATE);
-END;
-$BODY$
-  LANGUAGE plpgsql VOLATILE
-  COST 100
-  ROWS 1000;
 
--- ----------------------------
--- Function structure for houses_addressobjecttree
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."houses_addressobjecttree"("a_aoguid" uuid, "a_houseguid" uuid, "a_currstatus" int4=0, "a_enddate" timestamp='2079-06-06 00:00:00'::timestamp without time zone);
 CREATE OR REPLACE FUNCTION "public"."houses_addressobjecttree"("a_aoguid" uuid, "a_houseguid" uuid, "a_currstatus" int4=0, "a_enddate" timestamp='2079-06-06 00:00:00'::timestamp without time zone)
   RETURNS TABLE("guid" uuid, "currstatus" int4, "actstatus" int4, "aolevel" int4, "shorttypename" varchar, "addressobjectname" varchar) AS $BODY$
 DECLARE
@@ -637,10 +592,48 @@ DECLARE
   COST 100
   ROWS 1000;
 
--- ----------------------------
--- Function structure for houses_searchbyname
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."houses_searchbyname"("a_housenum" varchar, "a_buildnum" varchar=NULL::character varying, "a_strucnum" varchar=NULL::character varying, "a_formalname" varchar=NULL::character varying, "a_shortname" varchar=NULL::character varying, "a_parentformalname" varchar=NULL::character varying, "a_parentshortname" varchar=NULL::character varying, "a_grandparentformalname" varchar=NULL::character varying, "a_grandparentshortname" varchar=NULL::character varying);
+CREATE OR REPLACE FUNCTION "public"."houses_addressobjecttree"("a_houseguid" uuid, "a_enddate" timestamp='2079-06-06 00:00:00'::timestamp without time zone)
+  RETURNS TABLE("guid" uuid, "currstatus" int4, "actstatus" int4, "aolevel" int4, "shorttypename" varchar, "addressobjectname" varchar) AS $BODY$
+DECLARE
+    c_MaxEndDate CONSTANT TIMESTAMP:=TO_TIMESTAMP('2079-06-06','YYYY-MM-DD');
+    c_ActualStatusCode CONSTANT INTEGER :=1;  
+                              /* Признак актуальной записи адресного объекта */
+    c_NotActualStatusCode CONSTANT INTEGER :=0; 
+                              /* Значени кода актуальной записи */
+    v_AOGUID UUID; /* Глобальный уникальный */
+                             /* идентификатор адресного объекта*/
+    v_CurrStatus INTEGER; /* Статус актуальности КЛАДР 4: */
+                             /* 0 - актуальный, */
+                            /*  1-50 - исторический, */
+                           /* т.е. объект был переименован, */
+                           /* в данной записи приведено */
+                           /* одно из прежних его наименований, */
+                           /* 51 - переподчиненный*/
+    v_Return_Error Integer :=0; /* Код возврата */
+--*******************************************************************       
+--*******************************************************************
+ BEGIN
+    SELECT INTO v_AOGUID,v_CurrStatus h.AOGUID,
+                CASE WHEN 0 < ALL(SELECT iao.currstatus 
+                                        FROM AddressObjects iao 
+                                        WHERE ao.aoguid = iao.aoguid)
+                    THEN (SELECT MAX(iao.currstatus) 
+                                        FROM AddressObjects iao 
+                                        WHERE ao.aoguid = iao.aoguid)
+                    ELSE 0 END
+        FROM Houses h INNER JOIN AddressObjects ao ON h.AOGUID=ao.AOGUID 
+        WHERE h.HOUSEGUID=a_HOUSEGUID 
+            AND h.ENDDATE=COALESCE(a_ENDDATE,c_MaxEndDate)
+        ORDER BY h.ENDDATE DESC;
+    RETURN QUERY SELECT * FROM Houses_AddressObjectTree(
+                                                        v_AOGUID,a_HOUSEGUID,
+                                                        v_CurrStatus,a_ENDDATE);
+END;
+$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
 CREATE OR REPLACE FUNCTION "public"."houses_searchbyname"("a_housenum" varchar, "a_buildnum" varchar=NULL::character varying, "a_strucnum" varchar=NULL::character varying, "a_formalname" varchar=NULL::character varying, "a_shortname" varchar=NULL::character varying, "a_parentformalname" varchar=NULL::character varying, "a_parentshortname" varchar=NULL::character varying, "a_grandparentformalname" varchar=NULL::character varying, "a_grandparentshortname" varchar=NULL::character varying)
   RETURNS TABLE("aoguid" uuid, "houseguid" uuid, "aolevel" int4, "housesfullname" varchar, "housenum" varchar, "buildnum" varchar, "strucnum" varchar, "enddate" timestamp, "shortname" varchar, "formalname" varchar, "currstatus" int4, "actstatus" int4, "parentshortname" varchar, "parentformalname" varchar, "grandparentshortname" varchar, "grandparentformalname" varchar) AS $BODY$
 DECLARE
@@ -801,7 +794,7 @@ THEN
                                 FROM Houses ih 
                                WHERE cfa.aoguid = ih.aoguid 
                                    AND h.HouseGUID = ih.HouseGUID)
-							  AND pfa.actstatus=1
+                AND pfa.actstatus=1
                 AND pfa.currstatus=
                         CASE WHEN 0 < ALL(SELECT iao.currstatus 
                                FROM AddressObjects iao 
@@ -852,7 +845,7 @@ THEN
                               FROM Houses ih 
                               WHERE cfa.aoguid = ih.aoguid 
                                   AND h.HouseGUID = ih.HouseGUID)
-																	AND pfa.actstatus=1
+                                  AND pfa.actstatus=1
                                   AND pfa.currstatus=
                                   CASE WHEN 0 < ALL(SELECT iao.currstatus 
                                         FROM AddressObjects iao 
@@ -915,7 +908,7 @@ ELSE
                               FROM AddressObjects iao 
                               WHERE cfa.aoguid = iao.aoguid)
                 ELSE 0 END
-							 AND pfa.actstatus=1
+               AND pfa.actstatus=1
                AND pfa.currstatus=
               CASE WHEN 0 < ALL(SELECT iao.currstatus 
                               FROM AddressObjects iao 
@@ -924,7 +917,7 @@ ELSE
                               FROM AddressObjects iao 
                               WHERE pfa.aoguid = iao.aoguid)
                 ELSE 0 END
-								 AND pfa.actstatus=1
+                 AND pfa.actstatus=1
                  AND gpfa.currstatus=
                  CASE WHEN 0 < ALL(SELECT iao.currstatus 
                               FROM AddressObjects iao 
@@ -982,7 +975,7 @@ ELSE
                               FROM AddressObjects iao 
                               WHERE cfa.aoguid = iao.aoguid)
                   ELSE 0 END
-							AND pfa.actstatus=1
+              AND pfa.actstatus=1
               AND pfa.currstatus=
                CASE WHEN 0 < ALL(SELECT iao.currstatus 
                               FROM AddressObjects iao 
@@ -991,7 +984,7 @@ ELSE
                               FROM AddressObjects iao 
                               WHERE pfa.aoguid = iao.aoguid)
                   ELSE 0 END
-							AND gpfa.actstatus=1
+              AND gpfa.actstatus=1
               AND gpfa.currstatus=
                CASE WHEN 0 < ALL(SELECT iao.currstatus 
                               FROM AddressObjects iao 
@@ -1033,32 +1026,40 @@ $BODY$
   COST 100
   ROWS 1000;
 
--- ----------------------------
--- Function structure for houses_treeactualname
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."houses_treeactualname"("a_aoguid" uuid=HS, "a_houseguid" uuid=BY, "a_maskarray" _varchar=BG'::character varying[]);
-CREATE OR REPLACE FUNCTION "public"."houses_treeactualname"("a_aoguid" uuid=HS, "a_houseguid" uuid=BY, "a_maskarray" _varchar=BG'::character varying[])
-  RETURNS "pg_catalog"."varchar" AS $BODY$
+
+DROP FUNCTION IF EXISTS Houses_TreeActualName(a_AOGUID UUID,a_HOUSEGUID UUID,a_MaskArray VARCHAR(2)[10]) CASCADE;
+/*****************************************************************/
+/* Возвращает строку с адресом дома в соответствии с массивом масок          */
+/*****************************************************************/ 
+CREATE OR REPLACE FUNCTION Houses_TreeActualName(
+    a_AOGUID UUID, /* Идентификтор адресного объекта */
+    a_HOUSEGUID UUID, /* Глобальный уникальный идентификатор дома */
+    a_MaskArray VARCHAR(2)[10] default '{TP,LM,LP,ST,HS,BY,BG}' 
+                                  /* Массив масок, управляющий содержанием */
+                                   /* строки с адресом дома*/
+)
+RETURNS VARCHAR(1000) AS
+$BODY$
 DECLARE
-    c_HouseMaskArray	CONSTANT VARCHAR(2)[3]:='{HS,BY,BG}';
+    c_HouseMaskArray  CONSTANT VARCHAR(2)[3]:='{HS,BY,BG}';
                                             /* Массив масок по умолчанию*/
     c_HouseNoMask CONSTANT  VARCHAR(2)[1] :='{HS}';
     c_BodyNoMask CONSTANT  VARCHAR(2)[1] :='{BY}';/* Маска корпуса*/
-    c_BuildingNoMask	CONSTANT  VARCHAR(2)[1] :='{BG}';/* Маска строения*/
+    c_BuildingNoMask  CONSTANT  VARCHAR(2)[1] :='{BG}';/* Маска строения*/
     c_HouseShortTypeName CONSTANT VARCHAR(10):='д.';
     c_BuildShortTypeName CONSTANT VARCHAR(10):='корп.';
     c_StructShortTypeName CONSTANT VARCHAR(10):='стр.';
     v_ENDDATE TIMESTAMP; /* Окончание действия записи */
-    v_HOUSENUM VARCHAR(10);	/* Номер дома */
-    v_BUILDNUM VARCHAR(10);	/* Номер корпуса */
-    v_STRUCNUM	 VARCHAR(10);	/* Номер строения */
+    v_HOUSENUM VARCHAR(10); /* Номер дома */
+    v_BUILDNUM VARCHAR(10); /* Номер корпуса */
+    v_STRUCNUM   VARCHAR(10); /* Номер строения */
     v_TreeAddressObjectName VARCHAR(1000); 
                                      /* Полное в иерархии название объекта*/ 
     v_Return_Error Integer :=0; /* Код возврата */
 --*******************************************************       
 --*******************************************************
 BEGIN
-    v_TreeAddressObjectName:=AddressObjectsTreeActualName
+    v_TreeAddressObjectName:=addressobjectstreeactualname
                                    (a_AOGUID,a_MaskArray);
     SELECT INTO v_ENDDATE MAX(ENDDATE) 
         FROM Houses 
@@ -1074,33 +1075,39 @@ BEGIN
                     CASE WHEN v_TreeAddressObjectName='' THEN '' 
                                 ELSE ', ' ||c_HouseShortTypeName||' '||v_HOUSENUM 
                     END;
-    END IF;			
+    END IF;     
     IF  c_BodyNoMask <@ a_MaskArray 
             AND COALESCE(TRIM(v_BUILDNUM),'')<>'' THEN
         v_TreeAddressObjectName:=v_TreeAddressObjectName||
                 CASE WHEN v_TreeAddressObjectName='' THEN '' 
-                        ELSE ', ' ||	c_BuildShortTypeName||' '||v_BUILDNUM 
+                        ELSE ', ' ||  c_BuildShortTypeName||' '||v_BUILDNUM 
                 END;
-    END IF;							
+    END IF;             
     IF  c_BuildingNoMask <@ a_MaskArray 
             AND COALESCE(TRIM(v_STRUCNUM),'')<>'' THEN
         v_TreeAddressObjectName:=v_TreeAddressObjectName||
                 CASE WHEN v_TreeAddressObjectName='' THEN '' 
-                        ELSE ', ' ||	c_StructShortTypeName||' '||v_STRUCNUM 
+                        ELSE ', ' ||  c_StructShortTypeName||' '||v_STRUCNUM 
                  END;
-    END IF;							
-    RETURN 	v_TreeAddressObjectName;
+    END IF;             
+    RETURN  v_TreeAddressObjectName;
  END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE
-  COST 100;
-
--- ----------------------------
--- Function structure for houses_treeactualname
--- ----------------------------
-DROP FUNCTION IF EXISTS "public"."houses_treeactualname"("a_houseguid" uuid=BY, "a_maskarray" _varchar=BG'::character varying[]);
-CREATE OR REPLACE FUNCTION "public"."houses_treeactualname"("a_houseguid" uuid=BY, "a_maskarray" _varchar=BG'::character varying[])
-  RETURNS "pg_catalog"."varchar" AS $BODY$
+LANGUAGE plpgsql ;
+COMMENT ON FUNCTION Houses_TreeActualName(a_AOGUID UUID,a_HOUSEGUID UUID,a_MaskArray VARCHAR(2)[10]) IS 'Возвращает строку с адресом дома в соответствии с массивом масок';
+--ROLLBACK TRANSACTION;
+DROP FUNCTION IF EXISTS Houses_TreeActualName(a_HOUSEGUID UUID,a_MaskArray VARCHAR(2)[10]) CASCADE;
+/*****************************************************************/
+/* Возвращает строку с адресом дома в соответствии с массивом масок          */
+/*****************************************************************/ 
+CREATE OR REPLACE FUNCTION Houses_TreeActualName(
+    a_HOUSEGUID UUID,   /* Глобальный уникальный идентификатор дома */
+    a_MaskArray VARCHAR(2)[10] default '{TP,LM,LP,ST,HS,BY,BG}'
+                                   /* Массив масок, управляющий содержанием */
+                                   /* строки с адресом дома*/
+)
+RETURNS VARCHAR(1000) AS
+$BODY$
 DECLARE
     c_MaxEndDate CONSTANT TIMESTAMP:=TO_TIMESTAMP('2079-06-06','YYYY-MM-DD');
     v_AOGUID UUID; /* Идентификтор адресного объекта */
@@ -1109,18 +1116,19 @@ DECLARE
 --**********************************************************       
 --**********************************************************
 BEGIN
-    SELECT INTO v_AOGUID h.AOGUID	
+    SELECT INTO v_AOGUID h.AOGUID 
         FROM Houses h 
             INNER JOIN AddressObjects ao ON h.AOGUID=ao.AOGUID 
         WHERE h.HOUSEGUID=a_HOUSEGUID AND h.ENDDATE=c_MaxEndDate
         ORDER BY h.ENDDATE DESC;
     v_TreeAddressObjectName:=Houses_TreeActualName
                                         (v_AOGUID,a_HOUSEGUID,a_MaskArray);
-    RETURN 	v_TreeAddressObjectName;
+    RETURN  v_TreeAddressObjectName;
 END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE
-  COST 100;
+LANGUAGE plpgsql ;
+COMMENT ON FUNCTION Houses_TreeActualName(a_HOUSEGUID  UUID,a_MaskArray VARCHAR(2)[10]) IS 'Возвращает строку с адресом дома в соответствии с массивом масок';
+
   
 -- ----------------------------
 -- Indexes structure for table addressobjects
