@@ -1,6 +1,6 @@
 # PostgreSQL FIAS
 
-### Устанвка
+### Установка
 Зависимости
 ```sh
 $ pip2 install dbf2csv
