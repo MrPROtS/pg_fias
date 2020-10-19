@@ -13,7 +13,7 @@ if os.path.exists(dotenv_path):
 else:
 	print('not loaded .env file')
 	exit()
-os.environ.get('API_KEY')
+
 conn = psycopg2.connect(dbname=os.getenv("PG_DBNAME"), user=os.getenv("PG_USER"), 
 						password=os.getenv("PG_PASS"), host=os.getenv("PG_HOST"))
 
