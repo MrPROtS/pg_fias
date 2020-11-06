@@ -4,12 +4,12 @@ import time
 import requests
 import urllib.request
 import os, urllib, glob
-from datetime import datetime;
+from datetime import datetime
 
 from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
+	load_dotenv(dotenv_path)
 else:
 	print('not loaded .env file')
 	exit()
@@ -67,59 +67,58 @@ def getFiasVersion(ver, latest = False):
 			data[version['VersionId']] = version['FiasDeltaDbfUrl']
 	del data[ver]
 	data = sorted(data.items())
-	return data;
+	return data
 
 def getFullFias():
-	latest = getFiasVersion(False,True)
 	try:
+		latest = getFiasVersion(False,True)
 		urllib.request.urlretrieve(latest[1], './dbf/full.zip')
 		setVersion(latest[0],'full')
 	except:
 		getFullFias()
 
 def CheckFullUpdate():
-	latest = getFiasVersion(False,True)
 	try:
+		latest = getFiasVersion(False,True)
 		stat = os.stat(os.getenv('WORK_DIR')+'/dbf/'+'full.zip')
 		if stat.st_size / 1024 / 1024 < 7000:
 			getFullFias()
 	except:
 		getFullFias()
 		return False
-	if stat.st_ctime+2592000 < time.time():
+	if stat.st_ctime+1296000 < time.time():
 		getFullFias()
 
-CheckFullUpdate();
+def Update():
+	regions = Regions()
+	for region in regions:
+		cntReg = checkRegion(region[0])
+		if cntReg > 0:
+			ver = Version(region[0])
 
-regions = Regions()
-for region in regions:
-	cntReg = checkRegion(region[0])
-	if cntReg > 0:
-		ver = Version(region[0])
-		listUpdate = getFiasVersion(ver)
-		for update in listUpdate:
-			if os.path.isfile('./dbf/'+str(update[0])+'.zip') == False:
-				urllib.request.urlretrieve(update[1], './dbf/'+str(update[0])+'.zip')
-			bashCommand = './start_update.sh '+str(update[0])+'.zip'+' '+region[0]
+			try:
+				listUpdate = getFiasVersion(ver)
+			except:
+				Update()
+
+			for update in listUpdate:
+				if os.path.isfile('./dbf/'+str(update[0])+'.zip') == False:
+					urllib.request.urlretrieve(update[1], './dbf/'+str(update[0])+'.zip')
+				bashCommand = './start_update.sh '+str(update[0])+'.zip'+' '+region[0]
+				os.system(bashCommand)
+				setVersion(update[0],region[0])
+				ver = update[0]
+		else:
+			fullVer = Version('full')
+			setVersion(fullVer,region[0])
+			bashCommand = './start_update.sh full.zip'+' '+region[0]
 			os.system(bashCommand)
-			setVersion(update[0],region[0])
-			ver = update[0]
-	else:
-		fullVer = Version('full')
-		setVersion(fullVer,region[0])
-		bashCommand = './start_update.sh full.zip'+' '+region[0]
-		os.system(bashCommand)
 
-dir = os.getenv("WORK_DIR")+"/dbf/"
+	dir = os.getenv("WORK_DIR")+"/dbf/"
 
-for zippath in glob.iglob(os.path.join(dir, '202*.zip')):
-    os.remove(zippath)
+	for zippath in glob.iglob(os.path.join(dir, '202*.zip')):
+		os.remove(zippath)
 
+CheckFullUpdate()
+Update()
 exit()
-
-		
-
-	
-
-
-
